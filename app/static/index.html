@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG AI Chatbot</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        /* Add some basic styles for the new controls */
+        .controls {
+            background: #f0f0f0;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+        }
+        .control-group {
+            margin-bottom: 10px;
+        }
+        .control-group label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .control-group input, .control-group select {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            margin-right: 10px;
+            width: 200px;
+        }
+        .control-group button {
+            padding: 8px 15px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .control-group button:hover {
+            background-color: #0056b3;
+        }
+        .control-group button:disabled {
+            background-color: #ccc;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <header>
+            <h1>AI Assistant (RAG Enabled)</h1>
+        </header>
+        
+        <div class="controls">
+            <div class="control-group">
+                <label for="collection-select">Chat with Website:</label>
+                <select id="collection-select">
+                    <option value="">General Chat (No Context)</option>
+                </select>
+                <button id="refresh-btn">Refresh List</button>
+            </div>
+            
+            <hr>
+            
+            <div class="control-group">
+                <label>Add New Website:</label>
+                <input type="text" id="new-url" placeholder="https://example.com">
+                <input type="text" id="new-name" placeholder="Name (e.g., MyDocs)">
+                <button id="ingest-btn">Scrape & Save</button>
+            </div>
+            <div id="status-msg" style="color: green; font-size: 0.9em;"></div>
+        </div>
+
+        <div id="chat-box" class="chat-box">
+            <!-- Messages will appear here -->
+            <div class="message bot-message">Hello! Select a website to chat with its content, or just start typing for general chat.</div>
+        </div>
+        <div class="input-area">
+            <input type="text" id="user-input" placeholder="Type your message..." autocomplete="off">
+            <button id="send-btn">Send</button>
+        </div>
+    </div>
+    <script src="/static/script.js"></script>
+</body>
+</html>

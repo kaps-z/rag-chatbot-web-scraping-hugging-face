@@ -1,0 +1,130 @@
+import os
+from fastapi import FastAPI, HTTPException
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+from pydantic import BaseModel
+from openai import OpenAI
+import google.generativeai as genai
+from dotenv import load_dotenv
+from typing import Optional, List
+
+# Local imports
+try:
+    from . import rag
+    from .prompts import RAG_SYSTEM_PROMPT, DEFAULT_SYSTEM_PROMPT
+except ImportError:
+    # Fallback for when running directly
+    import rag
+    from prompts import RAG_SYSTEM_PROMPT, DEFAULT_SYSTEM_PROMPT
+
+# Load environment variables
+load_dotenv()
+
+# Initialize Clients
+openai_client = None
+if os.getenv("OPENAI_API_KEY"):
+    openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+if os.getenv("GEMINI_API_KEY"):
+    genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+
+app = FastAPI()
+
+class ChatRequest(BaseModel):
+    message: str
+    collection_name: Optional[str] = None
+
+class IngestRequest(BaseModel):
+    url: str
+    collection_name: str
+
+@app.get("/api/websites")
+async def list_websites():
+    try:
+        collections = rag.list_collections()
+        return {"websites": collections}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/ingest")
+async def ingest_endpoint(request: IngestRequest):
+    try:
+        # Simple validation
+        if not request.url.startswith("http"):
+             raise HTTPException(status_code=400, detail="Invalid URL")
+        
+        num_chunks = rag.ingest_url(request.url, request.collection_name)
+        return {"status": "success", "chunks": num_chunks, "message": f"Successfully ingested {request.url}"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/chat")
+async def chat_endpoint(request: ChatRequest):
+    gemini_key = os.getenv("GEMINI_API_KEY")
+    openai_key = os.getenv("OPENAI_API_KEY")
+
+    if not gemini_key and not openai_key:
+        raise HTTPException(status_code=500, detail="No API Key set (OpenAI or Gemini).")
+
+    try:
+        system_prompt = DEFAULT_SYSTEM_PROMPT
+        context = ""
+
+        # Retrieve context if collection is specified
+        if request.collection_name:
+            try:
+                context = rag.get_context(request.message, request.collection_name)
+                if context:
+                    system_prompt = RAG_SYSTEM_PROMPT.format(context=context, question=request.message)
+                else:
+                    # Fallback if no context found (rare)
+                    system_prompt = DEFAULT_SYSTEM_PROMPT + "\n\n(No relevant context found in the website data.)"
+            except Exception as e:
+                print(f"RAG Error: {e}")
+                # Continue without RAG if error
+                pass
+
+        if gemini_key:
+            # Use Gemini
+            model = genai.GenerativeModel('gemini-2.5-flash')
+            
+            # If using RAG, the system prompt contains the user question and context. 
+            # If not RAG, we act as normal assistant.
+            if request.collection_name:
+                 full_prompt = system_prompt # Already contains user question
+            else:
+                 full_prompt = f"{system_prompt}\n\nUser: {request.message}"
+
+            response = model.generate_content(full_prompt)
+            reply = response.text
+        else:
+            # Use OpenAI
+            messages = [{"role": "system", "content": system_prompt}]
+            if not request.collection_name:
+                messages.append({"role": "user", "content": request.message})
+            # If RAG, 'system_prompt' already has the question embedded, but OpenAI expects a user message usually.
+            # Ideally we split them.
+            if request.collection_name:
+                 # Re-structure for OpenAI better quality
+                 messages = [
+                     {"role": "system", "content": RAG_SYSTEM_PROMPT.format(context=context, question=request.message).replace(request.message, "{question}")}, # Keep template ish
+                     {"role": "user", "content": request.message}
+                 ]
+
+            response = openai_client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=messages
+            )
+            reply = response.choices[0].message.content
+            
+        return {"reply": reply}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Serve static files (HTML, CSS, JS)
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
+
+# Serve the index.html at the root URL
+@app.get("/")
+async def read_index():
+    return FileResponse('app/static/index.html')

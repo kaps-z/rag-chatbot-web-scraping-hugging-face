@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+
+LANGCHAIN_AND_CHROMA_GUIDE.md
+
+# IDEs
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+.Trash/
+*.log
+*.sqlite3
+
+# Playwright
+__pycache__/playwright/
+
+# ChromaDB persistence directory
+storage/chroma_db/
