@@ -26,3 +26,6 @@ __pycache__/playwright/
 
 # ChromaDB persistence directory
 storage/chroma_db/
+
+# Frontend dependencies
+frontend/node_modules/

@@ -7,7 +7,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
 import chromadb
 from urllib.parse import urljoin, urlparse
-from playwright.sync_api import sync_playwright
+from playwright.async_api import async_playwright
 
 # Configuration
 PERSIST_DIRECTORY = os.path.join(os.getcwd(), "storage", "chroma_db")
@@ -26,26 +26,26 @@ def get_vector_store(collection_name: str):
         persist_directory=PERSIST_DIRECTORY,
     )
 
-def scrape_website(url: str, max_pages: int = 10) -> list[Document]:
+async def scrape_website(url: str, max_pages: int = 10) -> list[Document]:
     """
     Scrapes the given URL and its internal links up to max_pages.
-    Uses Playwright to handle JavaScript-heavy websites.
+    Uses Playwright Async API.
     """
     domain = urlparse(url).netloc
     visited = set()
     queue = [url]
     documents = []
 
-    print(f"Starting scrape for {url} using Playwright...")
+    print(f"Starting scrape for {url} using Playwright (Async)...")
 
-    with sync_playwright() as p:
-        # Launch browser (headless=True for background operation)
-        browser = p.chromium.launch(headless=True)
-        # Create a context with user-agent to mimic real browser
-        context = browser.new_context(
+    async with async_playwright() as p:
+        # Launch browser
+        browser = await p.chromium.launch(headless=True)
+        # Create a context with user-agent
+        context = await browser.new_context(
             user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         )
-        page = context.new_page()
+        page = await context.new_page()
 
         while queue and len(visited) < max_pages:
             current_url = queue.pop(0)
@@ -54,11 +54,11 @@ def scrape_website(url: str, max_pages: int = 10) -> list[Document]:
             
             try:
                 print(f"Scraping: {current_url}")
-                # Go to page and wait for network to be idle (usually means JS finished loading)
-                page.goto(current_url, wait_until="networkidle", timeout=20000)
+                # Go to page and wait for network to be idle
+                await page.goto(current_url, wait_until="networkidle", timeout=20000)
                 
                 # Get the fully rendered HTML
-                content = page.content()
+                content = await page.content()
                 soup = BeautifulSoup(content, 'html.parser')
                 
                 # Cleanup
@@ -85,15 +85,15 @@ def scrape_website(url: str, max_pages: int = 10) -> list[Document]:
             except Exception as e:
                 print(f"Error scraping {current_url}: {e}")
                 # Try next URL in queue
-                visited.add(current_url) # Mark as visited to avoid retry loop
+                visited.add(current_url)
 
-        browser.close()
+        await browser.close()
             
     return documents
 
-def ingest_url(url: str, collection_name: str):
+async def ingest_url(url: str, collection_name: str):
     print(f"Starting ingestion for {url} into collection {collection_name}")
-    docs = scrape_website(url)
+    docs = await scrape_website(url)
     
     if not docs:
          raise ValueError("No content scraped. The website might be blocking headless browsers or is unreachable.")
@@ -102,6 +102,7 @@ def ingest_url(url: str, collection_name: str):
     splits = text_splitter.split_documents(docs)
     
     print(f"Scraping complete. Found {len(docs)} pages, split into {len(splits)} chunks.")
+    print(f"Docs-------->.{docs}")
     
     if not splits:
         raise ValueError("Content scraped but was empty after splitting.")
@@ -123,4 +124,5 @@ def list_collections():
 def get_context(query: str, collection_name: str, k: int = 4):
     vector_store = get_vector_store(collection_name)
     docs = vector_store.similarity_search(query, k=k)
+    print(f"Retrieved {len(docs)} context documents for query: '{docs}'")
     return "\n\n".join([doc.page_content for doc in docs])

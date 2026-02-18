@@ -51,9 +51,9 @@ async def ingest_endpoint(request: IngestRequest):
     try:
         # Simple validation
         if not request.url.startswith("http"):
-             raise HTTPException(status_code=400, detail="Invalid URL")
-        
-        num_chunks = rag.ingest_url(request.url, request.collection_name)
+            raise HTTPException(status_code=400, detail="Invalid URL")
+        print(f"Received ingestion request for URL: {request.url} into collection: {request.collection_name}")
+        num_chunks = await rag.ingest_url(request.url, request.collection_name)
         return {"status": "success", "chunks": num_chunks, "message": f"Successfully ingested {request.url}"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -99,7 +99,7 @@ async def chat_endpoint(request: ChatRequest):
             reply = response.text
         else:
             # Use OpenAI
-            messages = [{"role": "system", "content": system_prompt}]
+            messages = [{"role": "system", "content": system_prompt}] 
             if not request.collection_name:
                 messages.append({"role": "user", "content": request.message})
             # If RAG, 'system_prompt' already has the question embedded, but OpenAI expects a user message usually.
