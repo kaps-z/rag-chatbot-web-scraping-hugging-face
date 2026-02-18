@@ -4,7 +4,6 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from openai import OpenAI
-
 from google import genai
 from dotenv import load_dotenv
 from typing import Optional, List
@@ -65,9 +64,6 @@ async def chat_endpoint(request: ChatRequest):
     gemini_key = os.getenv("GEMINI_API_KEY")
     openai_key = os.getenv("OPENAI_API_KEY")
 
-    if not gemini_key and not openai_key:
-        raise HTTPException(status_code=500, detail="No API Key set (OpenAI or Gemini).")
-
     try:
         system_prompt = DEFAULT_SYSTEM_PROMPT
         context = ""
@@ -98,7 +94,7 @@ async def chat_endpoint(request: ChatRequest):
                 contents=full_prompt
             )
             reply = response.text
-        else:
+        elif openai_key:
             # Use OpenAI
             messages = [{"role": "system", "content": system_prompt}] 
             if not request.collection_name:
@@ -117,7 +113,15 @@ async def chat_endpoint(request: ChatRequest):
                 messages=messages
             )
             reply = response.choices[0].message.content
-            
+        else:
+            # Fallback: Use local embeddings (SentenceTransformer) via RAG to retrieve context.
+            # Since 'all-MiniLM-L6-v2' is an embedding model, it cannot generate text,
+            # so we return the retrieved chunks directly.
+            if context:
+                reply = f"**[Local Mode - Retrieval Only]**\n\nI found the following relevant information:\n\n{context}"
+            else:
+                reply = "**[Local Mode]** No API keys (Gemini/OpenAI) found and no relevant context retrieved from the collection."
+
         return {"reply": reply}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
