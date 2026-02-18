@@ -4,7 +4,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from openai import OpenAI
-import google.generativeai as genai
+
+from google import genai
 from dotenv import load_dotenv
 from typing import Optional, List
 
@@ -25,8 +26,9 @@ openai_client = None
 if os.getenv("OPENAI_API_KEY"):
     openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
+gemini_client = None
 if os.getenv("GEMINI_API_KEY"):
-    genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+    gemini_client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 app = FastAPI()
 
@@ -86,16 +88,15 @@ async def chat_endpoint(request: ChatRequest):
 
         if gemini_key:
             # Use Gemini
-            model = genai.GenerativeModel('gemini-2.5-flash')
-            
-            # If using RAG, the system prompt contains the user question and context. 
-            # If not RAG, we act as normal assistant.
             if request.collection_name:
                  full_prompt = system_prompt # Already contains user question
             else:
                  full_prompt = f"{system_prompt}\n\nUser: {request.message}"
 
-            response = model.generate_content(full_prompt)
+            response = gemini_client.models.generate_content(
+                model='gemini-2.0-flash',
+                contents=full_prompt
+            )
             reply = response.text
         else:
             # Use OpenAI
@@ -120,11 +121,3 @@ async def chat_endpoint(request: ChatRequest):
         return {"reply": reply}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-# Serve static files (HTML, CSS, JS)
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
-
-# Serve the index.html at the root URL
-@app.get("/")
-async def read_index():
-    return FileResponse('app/static/index.html')
