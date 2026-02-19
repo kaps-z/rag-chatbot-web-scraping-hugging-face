@@ -5,6 +5,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from openai import OpenAI
 from google import genai
+from langchain_huggingface import HuggingFaceEndpoint
 from dotenv import load_dotenv
 from typing import Optional, List
 
@@ -63,6 +64,7 @@ async def ingest_endpoint(request: IngestRequest):
 async def chat_endpoint(request: ChatRequest):
     gemini_key = os.getenv("GEMINI_API_KEY")
     openai_key = os.getenv("OPENAI_API_KEY")
+    hf_token = os.getenv("HUGGINGFACEHUB_API_TOKEN")
 
     try:
         system_prompt = DEFAULT_SYSTEM_PROMPT
@@ -113,6 +115,26 @@ async def chat_endpoint(request: ChatRequest):
                 messages=messages
             )
             reply = response.choices[0].message.content
+        elif hf_token:
+            # Use Hugging Face Inference API
+            # Recommended model: mistralai/Mistral-7B-Instruct-v0.2 or similar
+            repo_id = "mistralai/Mistral-7B-Instruct-v0.2"
+            
+            llm = HuggingFaceEndpoint(
+                repo_id=repo_id,
+                temperature=0.5,
+                huggingfacehub_api_token=hf_token
+            )
+            
+            # Construct prompt for LLM
+            if request.collection_name:
+                # system_prompt already has the RAG context and question formatted
+                full_prompt = system_prompt
+            else:
+                full_prompt = f"{system_prompt}\n\nUser: {request.message}\nAssistant:"
+
+            reply = llm.invoke(full_prompt)
+
         else:
             # Fallback: Use local embeddings (SentenceTransformer) via RAG to retrieve context.
             # Since 'all-MiniLM-L6-v2' is an embedding model, it cannot generate text,
@@ -120,7 +142,7 @@ async def chat_endpoint(request: ChatRequest):
             if context:
                 reply = f"**[Local Mode - Retrieval Only]**\n\nI found the following relevant information:\n\n{context}"
             else:
-                reply = "**[Local Mode]** No API keys (Gemini/OpenAI) found and no relevant context retrieved from the collection."
+                reply = "**[Local Mode]** No API keys (Gemini/OpenAI/HuggingFace) found and no relevant context retrieved from the collection."
 
         return {"reply": reply}
     except Exception as e:
