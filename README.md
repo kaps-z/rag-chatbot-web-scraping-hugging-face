@@ -1,6 +1,6 @@
-# WebScrapperAI - RAG Chatbot
+# WebMind-AI - RAG Chatbot
 
-WebScrapperAI is a powerful Retrieval-Augmented Generation (RAG) application that allows you to scrape websites, store their content in a vector database, and chat with the ingested data using advanced AI models.
+WebMind-AI is a powerful Retrieval-Augmented Generation (RAG) application that allows you to scrape websites, store their content in a vector database, and chat with the ingested data using advanced AI models.
 
 ## 🚀 Features
 
